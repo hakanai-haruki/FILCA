@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LR Style Editor - Nikon Edition</title>
+    <style>
+        /* --- CSS変数によるカラーパレット (Nikon Style) --- */
+        :root {
+            /* ベースカラー */
+            --c-bg-main: #121212;       /* 全体の背景 */
+            --c-bg-panel: #1E1E1E;      /* パネル背景 */
+            --c-bg-tab: #252525;        /* タブ背景 */
+            --c-bg-input: #444444;      /* スライダーのレール等 */
+            
+            /* テキストカラー */
+            --c-text-main: #E0E0E0;     /* メインテキスト */
+            --c-text-sub: #888888;      /* サブテキスト・ラベル */
+            --c-text-on-accent: #121212; /* アクセント上の文字 */
+
+            /* アクセントカラー */
+            --c-accent-primary: #FFE600; /* Nikon Yellow (メイン) */
+            --c-accent-danger: #FF3B30;  /* Reset Red (リセット) */
+            
+            /* その他 */
+            --c-border: #333333;         /* 境界線 */
+            --c-shadow: rgba(0,0,0,0.5); /* 影 */
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--c-bg-main);
+            color: var(--c-text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ヘッダー */
+        header {
+            height: 50px;
+            background-color: var(--c-bg-panel);
+            border-bottom: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .logo { font-weight: bold; letter-spacing: 1px; font-size: 14px; }
+        .logo span { color: var(--c-accent-primary); }
+        
+        .header-actions { display: flex; gap: 8px; align-items: center; }
+        .history-controls { display: flex; gap: 4px; margin-right: 10px; border-right: 1px solid var(--c-border); padding-right: 10px;}
+
+        /* レイアウトコンテナ */
+        .editor-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 50px);
+            overflow: hidden;
+        }
+
+        /* パネル共通 */
+        .panel {
+            background-color: var(--c-bg-panel);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+        .left-panel { width: 260px; border-right: 1px solid var(--c-border); }
+        .right-panel { width: 320px; border-left: 1px solid var(--c-border); }
+
+        /* スクロールエリア */
+        .scroll-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* 中央ビューポート */
+        .viewport {
+            flex: 1;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            background-image: radial-gradient(#222 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        canvas {
+            max-width: 95%;
+            max-height: 95%;
+            box-shadow: 0 0 50px var(--c-shadow);
+            transition: width 0.3s, height 0.3s;
+        }
+
+        /* --- UI Components --- */
+        h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--c-text-sub);
+            margin: 15px 0 8px 0;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--c-border);
+            padding-bottom: 4px;
+        }
+        h3:first-child { margin-top: 0; }
+
+        .film-btn {
+            background: linear-gradient(to right, #2a2a2a, #222);
+            border: 1px solid var(--c-border);
+            color: #ccc;
+            padding: 10px 12px;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: 0.2s;
+        }
+        .film-btn:hover { background: #333; color: #fff; border-color: #555; }
+        .film-tag { font-size: 9px; padding: 2px 4px; border-radius: 2px; background: #000; color: #aaa;}
+        
+        .brand-fuji { border-left: 3px solid #4CAF50; }
+        .brand-kodak { border-left: 3px solid #FFC107; }
+        .brand-cine { border-left: 3px solid #D32F2F; }
+        .brand-agfa { border-left: 3px solid #F44336; }
+        .brand-lomo { border-left: 3px solid #2196F3; }
+        .brand-bw { border-left: 3px solid #9E9E9E; }
+        .brand-retro { border-left: 3px solid #795548; }
+
+        /* タブ */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--c-border);
+            background: var(--c-bg-panel);
+            flex-shrink: 0;
+        }
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--c-text-sub);
+            padding: 12px 0;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: bold;
+            transition: 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-btn:hover { color: var(--c-text-main); }
+        .tab-btn.active { 
+            color: var(--c-accent-primary); 
+            border-bottom-color: var(--c-accent-primary); 
+            background: #222; 
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* スライダー */
+        .control-group { margin-bottom: 15px; }
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 6px;
+            color: var(--c-text-sub);
+        }
+        .val-display { color: var(--c-accent-primary); font-family: monospace; }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; padding: 5px 0;}
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; 
+            background: var(--c-bg-input); border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 14px; width: 14px; border-radius: 50%;
+            background: #fff; cursor: pointer; -webkit-appearance: none; margin-top: -5px;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        input[type=range]:active::-webkit-slider-thumb {
+            background: var(--c-accent-primary);
+            transform: scale(1.2);
+        }
+        .hue-slider::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red);
+        }
+        
+        /* ボタン */
+        .btn { 
+            padding: 6px 12px; border: none; border-radius: 4px; 
+            cursor: pointer; font-size: 12px; font-weight: bold; 
+            transition: 0.2s; white-space: nowrap;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-primary { background-color: var(--c-accent-primary); color: var(--c-text-on-accent); }
+        .btn-secondary { background-color: transparent; border: 1px solid #555; color: var(--c-text-sub); }
+        .btn-secondary:hover { border-color: var(--c-text-main); color: var(--c-text-main); }
+        .btn-danger { background-color: var(--c-accent-danger); color: #fff; }
+        .btn-outline-danger { background-color: transparent; border: 1px solid var(--c-accent-danger); color: var(--c-accent-danger); }
+        .btn-outline-danger:hover { background-color: var(--c-accent-danger); color: #fff; }
+        .btn-icon { background: #333; color: var(--c-text-main); padding: 6px 10px; font-size: 14px;}
+
+        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        #fileInput { display: none; }
+
+        /* --- 📱 レスポンシブ --- */
+        @media (max-width: 768px) {
+            body { height: 100%; position: fixed; width: 100%; }
+            header { padding: 0 10px; }
+            .logo { display: none; }
+            .editor-container { flex-direction: column; height: calc(100% - 50px); }
+            .viewport { flex: 2; order: 1; min-height: 40vh; border-bottom: 1px solid var(--c-border); }
+            .panel { width: 100%; order: 2; }
+            .left-panel { display: none; }
+            .right-panel { flex: 3; width: 100%; border-left: none; }
+            .scroll-content { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">LR<span>.NIKON-STYLE</span></div>
+        <div class="header-actions">
+            <div class="history-controls">
+                <button class="btn btn-icon" id="btnUndo" onclick="undo()" title="Undo">↩️</button>
+                <button class="btn btn-icon" id="btnRedo" onclick="redo()" title="Redo">↪️</button>
+            </div>
+            <button class="btn btn-danger" onclick="applyPreset('reset')">Reset</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">Open</button>
+            <input type="file" id="fileInput" accept="image/*">
+            <button class="btn btn-primary" onclick="downloadImage()">Save</button>
+        </div>
+    </header>
+
+    <div class="editor-container">
+        
+        <div class="panel left-panel">
+            <div class="scroll-content">
+                <h3>Fujifilm</h3>
+                <div class="film-btn brand-fuji" onclick="applyPreset('superia')">Superia 400 <span class="film-tag">Green</span></div>
+                <div class="film-btn brand-fuji" onclick="applyPreset('industrial')">Industrial 100 <span class="film-tag">Daily</span></div>
+                <div class="film-btn brand-fuji" onclick="applyPreset('pro400h')">Pro 400H <span class="film-tag">Cyan</span></div>
+                <div class="film-btn brand-fuji" onclick="applyPreset('velvia')">Velvia 50 <span class="film-tag">Vivid</span></div>
+                <div class="film-btn brand-fuji" onclick="applyPreset('astia')">Astia 100 <span class="film-tag">Soft</span></div>
+                <div class="film-btn brand-fuji" onclick="applyPreset('acros')">Neopan Acros <span class="film-tag">B&W</span></div>
+                <div class="film-btn brand-fuji" onclick="applyPreset('fuji_sepia')">Fuji Sepia <span class="film-tag">Retro</span></div>
+
+                <h3>Kodak</h3>
+                <div class="film-btn brand-kodak" onclick="applyPreset('portra400')">Portra 400 <span class="film-tag">Skin</span></div>
+                <div class="film-btn brand-kodak" onclick="applyPreset('portra160')">Portra 160 <span class="film-tag">Fine</span></div>
+                <div class="film-btn brand-kodak" onclick="applyPreset('gold')">Gold 200 <span class="film-tag">Warm</span></div>
+                <div class="film-btn brand-kodak" onclick="applyPreset('colorplus')">ColorPlus <span class="film-tag">Nostalgic</span></div>
+                <div class="film-btn brand-kodak" onclick="applyPreset('ultramax')">UltraMax <span class="film-tag">Deep</span></div>
+                <div class="film-btn brand-kodak" onclick="applyPreset('ektar')">Ektar 100 <span class="film-tag">Rich</span></div>
+                <div class="film-btn brand-kodak" onclick="applyPreset('e100')">Ektachrome <span class="film-tag">Cool</span></div>
+
+                <h3>Agfa & Lomo</h3>
+                <div class="film-btn brand-agfa" onclick="applyPreset('vista')">Agfa Vista <span class="film-tag">Punchy</span></div>
+                <div class="film-btn brand-agfa" onclick="applyPreset('precisa')">Agfa Precisa <span class="film-tag">X-Pro</span></div>
+                <div class="film-btn brand-lomo" onclick="applyPreset('lomo800')">Lomo 800 <span class="film-tag">Toy</span></div>
+                <div class="film-btn brand-lomo" onclick="applyPreset('lomopurple')">Lomo Purple <span class="film-tag">Art</span></div>
+
+                <h3>Cinestill</h3>
+                <div class="film-btn brand-cine" onclick="applyPreset('cine800t')">800T <span class="film-tag">Night</span></div>
+                <div class="film-btn brand-cine" onclick="applyPreset('cine50d')">50D <span class="film-tag">Day</span></div>
+
+                <h3>Monochrome</h3>
+                <div class="film-btn brand-bw" onclick="applyPreset('hp5')">Ilford HP5 <span class="film-tag">Grainy</span></div>
+                <div class="film-btn brand-bw" onclick="applyPreset('delta3200')">Ilford Delta <span class="film-tag">Rough</span></div>
+                <div class="film-btn brand-bw" onclick="applyPreset('trix')">Kodak Tri-X <span class="film-tag">Contrast</span></div>
+                <div class="film-btn brand-bw" onclick="applyPreset('tmax3200')">T-MAX 3200 <span class="film-tag">Hard</span></div>
+
+                <h3>Vintage</h3>
+                <div class="film-btn brand-retro" onclick="applyPreset('polaroid')">Polaroid <span class="film-tag">Faded</span></div>
+            </div>
+        </div>
+
+        <div class="viewport">
+            <span id="msg" style="color:#666; pointer-events:none; font-size: 12px; position:absolute;">OPEN IMAGE</span>
+            <canvas id="photoCanvas"></canvas>
+        </div>
+
+        <div class="panel right-panel">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('tab-basic')">BASIC</button>
+                <button class="tab-btn" onclick="switchTab('tab-grading')">COLOR</button>
+                <button class="tab-btn" onclick="switchTab('tab-effects')">EFFECTS</button>
+            </div>
+
+            <div id="tab-basic" class="tab-content scroll-content active">
+                <h3>Light / Tone</h3>
+                <div class="control-group"><div class="label-row"><span>Exposure</span><span id="val-brightness" class="val-display">0</span></div><input type="range" id="brightness" min="-50" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Contrast</span><span id="val-contrast" class="val-display">0</span></div><input type="range" id="contrast" min="-50" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Matte / Fade</span><span id="val-fade" class="val-display">0</span></div><input type="range" id="fade" min="0" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Vignette</span><span id="val-vignette" class="val-display">0</span></div><input type="range" id="vignette" min="0" max="100" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+
+                <h3>Color Balance</h3>
+                <div class="control-group"><div class="label-row"><span>Temp (Blue/Yellow)</span><span id="val-temp" class="val-display">0</span></div><input type="range" id="temp" min="-50" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Tint (Green/Magenta)</span><span id="val-tint" class="val-display">0</span></div><input type="range" id="tint" min="-50" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Saturation</span><span id="val-saturate" class="val-display">0</span></div><input type="range" id="saturate" min="-100" max="100" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                
+                <h3>Detail</h3>
+                <div class="control-group"><div class="label-row"><span>Grain (Zf Style)</span><span id="val-grain" class="val-display">0</span></div><input type="range" id="grain" min="0" max="100" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+            </div>
+
+            <div id="tab-grading" class="tab-content scroll-content">
+                <h3>Split Toning</h3>
+                <div class="control-group"><div class="label-row"><span>Shadow Hue</span><span id="val-shadowHue" class="val-display">0</span></div><input type="range" id="shadowHue" class="hue-slider" min="0" max="360" value="200" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Shadow Sat</span><span id="val-shadowSat" class="val-display">0</span></div><input type="range" id="shadowSat" min="0" max="100" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Highlight Hue</span><span id="val-highlightHue" class="val-display">0</span></div><input type="range" id="highlightHue" class="hue-slider" min="0" max="360" value="40" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Highlight Sat</span><span id="val-highlightSat" class="val-display">0</span></div><input type="range" id="highlightSat" min="0" max="100" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+
+                <h3>Channel Mixer</h3>
+                <div class="control-group"><div class="label-row"><span>Red Output</span><span id="val-mixR" class="val-display">0</span></div><input type="range" id="mixR" min="-50" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Green Output</span><span id="val-mixG" class="val-display">0</span></div><input type="range" id="mixG" min="-50" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+                <div class="control-group"><div class="label-row"><span>Blue Output</span><span id="val-mixB" class="val-display">0</span></div><input type="range" id="mixB" min="-50" max="50" value="0" oninput="updateFilterLive()" onchange="saveState()"></div>
+            </div>
+
+            <div id="tab-effects" class="tab-content scroll-content">
+                <h3>Sunlight Effects</h3>
+                <div class="tool-grid">
+                    <button class="film-btn" onclick="addArtifact('flare')">☀ Sun Flare</button>
+                    <button class="film-btn" onclick="addArtifact('leak')">🔥 Light Leak</button>
+                </div>
+                <button class="btn btn-outline-danger" style="width:100%; margin-top:8px;" onclick="clearArtifacts()">Clear Effects</button>
+
+                <h3>Tone Curve</h3>
+                <div class="tool-grid">
+                    <button class="film-btn" onclick="applyCurve('s')">Contrast (S)</button>
+                    <button class="film-btn" onclick="applyCurve('reverse')">Fade (Rev-S)</button>
+                    <button class="film-btn" onclick="applyCurve('matte')">Matte Black</button>
+                </div>
+                
+                <h3 style="margin-top:20px;">Mobile Quick Film</h3>
+                 <div class="tool-grid">
+                     <button class="film-btn brand-kodak" onclick="applyPreset('portra400')">Portra 400</button>
+                     <button class="film-btn brand-fuji" onclick="applyPreset('acros')">Neopan Acros</button>
+                     <button class="film-btn brand-fuji" onclick="applyPreset('industrial')">Industrial</button>
+                     <button class="film-btn brand-agfa" onclick="applyPreset('vista')">Agfa Vista</button>
+                </div>
+
+                <h3>Tools</h3>
+                <div class="tool-grid">
+                    <button class="film-btn" onclick="rotateImage()">🔄 Rotate 90°</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('photoCanvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('fileInput');
+        
+        let originalImage = new Image();
+        let artifacts = []; 
+        let rotation = 0;
+        
+        let noiseCanvas = null;
+        let lastGrainAmount = -1;
+
+        let historyStack = [];
+        let redoStack = [];
+        let isInternalUpdate = false;
+
+        updateHistoryButtons();
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                originalImage.onload = function() {
+                    rotation = 0;
+                    artifacts = [];
+                    historyStack = [];
+                    redoStack = [];
+                    applyPreset('reset');
+                    document.getElementById('msg').style.display = 'none';
+                    updateHistoryButtons();
+                }
+                originalImage.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+
+        // --- History System ---
+        function getCurrentState() {
+            return {
+                params: {
+                    brightness: document.getElementById('brightness').value,
+                    contrast: document.getElementById('contrast').value,
+                    fade: document.getElementById('fade').value,
+                    vignette: document.getElementById('vignette').value,
+                    temp: document.getElementById('temp').value,
+                    tint: document.getElementById('tint').value,
+                    saturate: document.getElementById('saturate').value,
+                    grain: document.getElementById('grain').value,
+                    shadowHue: document.getElementById('shadowHue').value,
+                    shadowSat: document.getElementById('shadowSat').value,
+                    highlightHue: document.getElementById('highlightHue').value,
+                    highlightSat: document.getElementById('highlightSat').value,
+                    mixR: document.getElementById('mixR').value,
+                    mixG: document.getElementById('mixG').value,
+                    mixB: document.getElementById('mixB').value,
+                },
+                artifacts: JSON.parse(JSON.stringify(artifacts)),
+                rotation: rotation
+            };
+        }
+
+        function applyState(state) {
+            isInternalUpdate = true;
+            for (let key in state.params) {
+                const el = document.getElementById(key);
+                if (el) el.value = state.params[key];
+            }
+            artifacts = JSON.parse(JSON.stringify(state.artifacts));
+            rotation = state.rotation;
+            updateFilterLive();
+            isInternalUpdate = false;
+        }
+
+        function saveState() {
+            if (isInternalUpdate) return;
+            const currentState = getCurrentState();
+            historyStack.push(currentState);
+            redoStack = [];
+            updateHistoryButtons();
+        }
+
+        function undo() {
+            if (historyStack.length === 0) return;
+            const current = getCurrentState();
+            redoStack.push(current);
+            const previous = historyStack.pop();
+            applyState(previous);
+            updateHistoryButtons();
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            const current = getCurrentState();
+            historyStack.push(current);
+            const next = redoStack.pop();
+            applyState(next);
+            updateHistoryButtons();
+        }
+
+        function updateHistoryButtons() {
+            document.getElementById('btnUndo').disabled = historyStack.length === 0;
+            document.getElementById('btnRedo').disabled = redoStack.length === 0;
+        }
+
+        // --- Actions ---
+        function rotateImage() {
+            saveState(); 
+            rotation = (rotation + 90) % 360;
+            updateFilterLive();
+        }
+
+        function addArtifact(type) {
+            saveState(); 
+            const w = canvas.width; const h = canvas.height;
+            if(type === 'flare') {
+                artifacts.push({type:'flare', x:0, y:0, r:Math.max(w,h)*0.8, hue:30, op:0.4});
+            } else if (type === 'leak') {
+                const side = Math.random();
+                let x, y, r = Math.random()*w*0.5 + w*0.2;
+                if(side < 0.5) { x = (Math.random()<0.5?0:w); y = Math.random()*h; } 
+                else { x = Math.random()*w; y = (Math.random()<0.5?0:h); }
+                artifacts.push({type:'leak', x:x, y:y, r:r, hue:Math.random()*30+10, op:0.5});
+            }
+            updateFilterLive();
+        }
+
+        function clearArtifacts() { 
+            saveState();
+            artifacts = []; 
+            updateFilterLive(); 
+        }
+
+        function applyCurve(type) {
+            saveState();
+            const s = {brightness:0, contrast:0, fade:0};
+            switch(type) {
+                case 's': s.contrast = 30; break;
+                case 'reverse': s.contrast = -20; s.fade = 20; break;
+                case 'matte': s.fade = 30; break;
+            }
+            document.getElementById('contrast').value = s.contrast;
+            document.getElementById('fade').value = s.fade;
+            updateFilterLive();
+        }
+
+        function applyPreset(name) {
+            if (originalImage.src) saveState();
+
+            // Default
+            const s = {brightness:0, contrast:0, fade:0, vignette:0, temp:0, tint:0, saturate:0, grain:0, shadowHue:0, shadowSat:0, highlightHue:0, highlightSat:0, mixR:0, mixG:0, mixB:0};
+            
+            switch(name) {
+                // Fuji
+                case 'superia': s.brightness=5; s.contrast=10; s.fade=10; s.tint=-20; s.saturate=10; s.grain=20; s.mixG=10; break;
+                case 'industrial': s.contrast=5; s.tint=-25; s.temp=-5; s.grain=30; s.mixG=15; break;
+                case 'pro400h': s.brightness=10; s.contrast=-5; s.fade=20; s.tint=-10; s.temp=-10; s.saturate=-10; s.grain=15; s.mixB=10; break;
+                case 'velvia':  s.contrast=20; s.saturate=30; s.tint=-5; s.mixR=10; s.mixB=10; break;
+                case 'astia':   s.contrast=0; s.saturate=5; s.fade=5; s.tint=-5; s.temp=-5; break;
+                case 'acros':   s.saturate=-100; s.contrast=25; s.grain=15; s.mixG=-20; break;
+                case 'fuji_sepia': s.saturate=-100; s.contrast=10; s.temp=30; s.tint=-10; s.fade=10; break;
+                
+                // Kodak
+                case 'portra400': s.contrast=5; s.temp=10; s.tint=10; s.saturate=10; s.grain=10; s.highlightHue=40; s.highlightSat=10; break;
+                case 'portra160': s.contrast=0; s.temp=5; s.tint=5; s.grain=5; s.fade=5; break;
+                case 'gold':      s.contrast=10; s.temp=25; s.tint=5; s.saturate=15; s.grain=25; break;
+                case 'colorplus': s.contrast=5; s.temp=35; s.tint=10; s.saturate=5; s.grain=25; break;
+                case 'ultramax':  s.contrast=25; s.saturate=25; s.grain=40; s.shadowHue=240; s.shadowSat=20; break;
+                case 'ektar':     s.contrast=30; s.saturate=20; s.temp=5; s.mixR=15; break;
+                case 'e100':      s.contrast=15; s.temp=-15; s.tint=-5; s.saturate=15; s.mixB=20; break;
+                
+                // Agfa / Lomo
+                case 'vista':     s.contrast=30; s.saturate=30; s.temp=10; s.mixR=20; s.mixB=10; break;
+                case 'precisa':   s.contrast=20; s.tint=-15; s.mixB=25; s.highlightHue=180; s.highlightSat=10; break;
+                case 'lomo800':   s.contrast=30; s.saturate=20; s.temp=20; s.vignette=30; s.grain=40; break;
+                case 'lomopurple': s.mixG=-50; s.mixR=30; s.mixB=30; s.highlightHue=300; s.highlightSat=50; break;
+                
+                // Cine / BW / Vintage
+                case 'cine800t':  s.brightness=-5; s.contrast=15; s.fade=15; s.vignette=30; s.temp=-30; s.highlightHue=200; s.highlightSat=20; s.grain=35; break;
+                case 'cine50d':   s.contrast=10; s.temp=15; s.saturate=5; s.highlightHue=30; s.highlightSat=15; break;
+                
+                case 'hp5':       s.saturate=-100; s.contrast=20; s.grain=40; s.fade=10; break;
+                case 'delta3200': s.saturate=-100; s.contrast=10; s.grain=80; s.fade=30; break;
+                case 'trix':      s.saturate=-100; s.contrast=40; s.grain=50; s.vignette=20; break;
+                case 'tmax3200':  s.saturate=-100; s.contrast=50; s.grain=100; s.vignette=40; break;
+                
+                case 'polaroid':  s.contrast=-10; s.fade=30; s.temp=10; s.saturate=-20; s.vignette=20; s.shadowHue=240; s.shadowSat=15; s.highlightHue=50; s.highlightSat=15; break;
+                case 'reset':     rotation = 0; artifacts = []; break;
+            }
+
+            for (let key in s) { 
+                const el = document.getElementById(key); 
+                if(el) el.value = s[key]; 
+            }
+            updateFilterLive();
+        }
+
+        // ============================================
+        // 描画エンジン (Preview)
+        // ============================================
+
+        function updateFilterLive() {
+            if (!originalImage.src) return;
+
+            const p = {
+                brightness: parseInt(document.getElementById('brightness').value),
+                contrast: parseInt(document.getElementById('contrast').value),
+                fade: parseInt(document.getElementById('fade').value),
+                vignette: parseInt(document.getElementById('vignette').value),
+                temp: parseInt(document.getElementById('temp').value),
+                tint: parseInt(document.getElementById('tint').value),
+                saturate: parseInt(document.getElementById('saturate').value),
+                grain: parseInt(document.getElementById('grain').value),
+                sHue: parseInt(document.getElementById('shadowHue').value), sSat: parseInt(document.getElementById('shadowSat').value),
+                hHue: parseInt(document.getElementById('highlightHue').value), hSat: parseInt(document.getElementById('highlightSat').value),
+                mR: parseInt(document.getElementById('mixR').value), mG: parseInt(document.getElementById('mixG').value), mB: parseInt(document.getElementById('mixB').value),
+            };
+
+            for (let k in p) {
+                const el = document.getElementById('val-' + (k.startsWith('m')?k:k));
+                let id = 'val-' + k;
+                let target = document.getElementById(id);
+                if(target) target.innerText = p[k];
+            }
+
+            if (rotation % 180 === 0) {
+                canvas.width = originalImage.width;
+                canvas.height = originalImage.height;
+            } else {
+                canvas.width = originalImage.height;
+                canvas.height = originalImage.width;
+            }
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+            ctx.save();
+            ctx.translate(w / 2, h / 2);
+            ctx.rotate(rotation * Math.PI / 180);
+            ctx.drawImage(originalImage, -originalImage.width / 2, -originalImage.height / 2);
+            ctx.restore();
+
+            // 1. Basic Filters
+            ctx.globalCompositeOperation = 'copy';
+            ctx.filter = `brightness(${100 + p.brightness}%) contrast(${100 + p.contrast}%) saturate(${100 + p.saturate}%)`;
+            ctx.drawImage(canvas, 0, 0); 
+            ctx.filter = 'none';
+
+            // 2. Channel Mixer (Overlay)
+            if (p.mR !== 0 || p.mG !== 0 || p.mB !== 0) {
+                ctx.globalCompositeOperation = 'overlay';
+                if(p.mR !== 0) { ctx.fillStyle = p.mR > 0 ? `rgba(255,0,0,${Math.abs(p.mR)/100})` : `rgba(0,255,255,${Math.abs(p.mR)/100})`; ctx.fillRect(0,0,w,h); }
+                if(p.mG !== 0) { ctx.fillStyle = p.mG > 0 ? `rgba(0,255,0,${Math.abs(p.mG)/100})` : `rgba(255,0,255,${Math.abs(p.mG)/100})`; ctx.fillRect(0,0,w,h); }
+                if(p.mB !== 0) { ctx.fillStyle = p.mB > 0 ? `rgba(0,0,255,${Math.abs(p.mB)/100})` : `rgba(255,255,0,${Math.abs(p.mB)/100})`; ctx.fillRect(0,0,w,h); }
+            }
+
+            // 3. White Balance
+            ctx.globalCompositeOperation = 'overlay';
+            if (p.temp !== 0) { ctx.fillStyle = p.temp > 0 ? `rgba(255,160,0,${Math.abs(p.temp)/150})` : `rgba(0,100,255,${Math.abs(p.temp)/150})`; ctx.fillRect(0,0,w,h); }
+            if (p.tint !== 0) { ctx.fillStyle = p.tint > 0 ? `rgba(255,0,255,${Math.abs(p.tint)/150})` : `rgba(0,255,0,${Math.abs(p.tint)/150})`; ctx.fillRect(0,0,w,h); }
+
+            // 4. Grading
+            if (p.sSat > 0) { ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `hsla(${p.sHue},100%,50%,${p.sSat/400})`; ctx.fillRect(0,0,w,h); }
+            if (p.hSat > 0) { ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = `hsla(${p.hHue},100%,80%,${p.hSat/150})`; ctx.fillRect(0,0,w,h); }
+
+            // 5. Fade
+            if (p.fade > 0) { ctx.globalCompositeOperation = 'lighten'; ctx.fillStyle = `rgba(40,40,40,${p.fade/100})`; ctx.fillRect(0,0,w,h); }
+
+            // 6. Artifacts
+            if (artifacts.length > 0) {
+                ctx.globalCompositeOperation = 'screen';
+                artifacts.forEach(art => {
+                    const g = ctx.createRadialGradient(art.x, art.y, 0, art.x, art.y, art.r);
+                    g.addColorStop(0, `hsla(${art.hue}, 100%, 80%, ${art.op})`);
+                    g.addColorStop(0.5, `hsla(${art.hue+20}, 80%, 60%, ${art.op*0.5})`);
+                    g.addColorStop(1, `hsla(${art.hue+40}, 80%, 50%, 0)`);
+                    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+                });
+            }
+
+            // 7. Vignette
+            if (p.vignette > 0) {
+                ctx.globalCompositeOperation = 'multiply';
+                const radius = Math.max(w, h) * 0.8;
+                const g = ctx.createRadialGradient(w/2, h/2, radius*0.4, w/2, h/2, radius);
+                g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${p.vignette/100})`);
+                ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+            }
+
+            // 8. Grain (High Quality Zf Style)
+            if (p.grain > 0) { 
+                drawGrainZf(w, h, p.grain);
+            }
+            
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        function drawGrainZf(w, h, amount) {
+            const PATTERN_SIZE = 512;
+
+            if (!noiseCanvas) {
+                noiseCanvas = document.createElement('canvas');
+                noiseCanvas.width = PATTERN_SIZE;
+                noiseCanvas.height = PATTERN_SIZE;
+            }
+
+            if (amount !== lastGrainAmount) {
+                const nCtx = noiseCanvas.getContext('2d');
+                const iData = nCtx.createImageData(PATTERN_SIZE, PATTERN_SIZE);
+                const buffer = iData.data;
+                const len = buffer.length;
+                const strength = amount * 1.5;
+
+                for (let i = 0; i < len; i += 4) {
+                    const noise = (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 2;
+                    let val = 128 + (noise * strength);
+                    val = Math.max(0, Math.min(255, val));
+                    buffer[i] = val;    
+                    buffer[i + 1] = val;
+                    buffer[i + 2] = val; 
+                    buffer[i + 3] = 255; 
+                }
+                nCtx.putImageData(iData, 0, 0);
+                lastGrainAmount = amount;
+            }
+
+            ctx.save();
+            ctx.globalCompositeOperation = 'overlay';
+            const pattern = ctx.createPattern(noiseCanvas, 'repeat');
+            ctx.fillStyle = pattern;
+            const ox = Math.random() * PATTERN_SIZE;
+            const oy = Math.random() * PATTERN_SIZE;
+            ctx.translate(ox, oy);
+            ctx.fillRect(-ox, -oy, w + ox, h + oy);
+            ctx.restore();
+        }
+
+        // --- Pythonサーバーで高画質書き出しを行う関数 ---
+        async function downloadImage() {
+            if (!originalImage.src) {
+                alert("画像を開いてください");
+                return;
+            }
+
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) {
+                alert("オリジナルの画像ファイルが見つかりません。もう一度「Open」から開いてください。");
+                return;
+            }
+
+            const btn = document.querySelector('.btn-primary');
+            const originalText = btn.innerText;
+            btn.innerText = "Developing...";
+            btn.style.opacity = "0.7";
+            btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+
+                // 現在のスライダー値をすべて取得して追加
+                const ids = [
+                    'brightness', 'contrast', 'fade', 'saturate', 'grain', 
+                    'vignette', 'temp', 'tint'
+                    // 必要に応じて他のパラメータもここに追加
+                ];
+                ids.forEach(id => {
+                    const val = document.getElementById(id)?.value || 0;
+                    formData.append(id, val);
+                });
+
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error("Server Error");
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'nikon_style_edit.jpg';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error(error);
+                alert("エラーが発生しました。");
+            } finally {
+                btn.innerText = originalText;
+                btn.style.opacity = "1";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
